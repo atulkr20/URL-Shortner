@@ -20,9 +20,19 @@ export function authenticationMiddleware(req, res, next) {
 
     const [_, token] = authHeader.split(' ');
 
-    const payload = validateUserToken(token);
+    try {
+        const payload = validateUserToken(token);
+        
+        if (!payload) {
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
 
-    req.user = payload;
+        req.user = payload;
+    } catch (error) {
+        console.error("Token validation error:", error);
+        return res.status(401).json({ error: 'Token validation failed' });
+    }
+    
     next();
 }
 
@@ -33,10 +43,13 @@ export function authenticationMiddleware(req, res, next) {
  * @param {import("express").NextFunction} next 
  */
 
-export function ensureAuthenticated (req, res) {
+export function ensureAuthenticated (req, res, next) {
     if(!req.user || !req.user.id) {
         return res
         .status(401)
         .json({ error: 'You must be logged in to access this resource '});
     }
+
+    // User is authenticated, proceed to next middleware/handler
+    return next();
 }

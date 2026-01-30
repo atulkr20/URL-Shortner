@@ -1,5 +1,6 @@
 import { pgTable, uuid, varchar, text, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./user.model.js";
+import { integer } from "drizzle-orm/gel-core";
 export const urlsTable = pgTable('urls', {
     id: uuid().primaryKey().defaultRandom(),
 
@@ -8,6 +9,7 @@ export const urlsTable = pgTable('urls', {
 
     userId: uuid('user_id').references(()=> usersTable.id).notNull(),
 
+    visits: integer('visits').default(0).notNull(),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').$onUpdate( () => new Date()),
