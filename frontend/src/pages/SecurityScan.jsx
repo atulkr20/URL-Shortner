@@ -5,128 +5,144 @@ const SecurityScan = () => {
   const { shortCode } = useParams();
   
   // State
-  const [displayedLines, setDisplayedLines] = useState([]);
+  const [lines, setLines] = useState([]);      // Completed lines
+  const [currentLine, setCurrentLine] = useState(""); // Currently typing line
   const [redirectUrl, setRedirectUrl] = useState(null);
   const [isComplete, setIsComplete] = useState(false);
-  const [error, setError] = useState(null); // Track errors
+  
+  // Refs for auto-scroll and fetching
+  const bottomRef = useRef(null);
   const hasFetched = useRef(false);
 
-  // 1. LOG SEQUENCE
-  const logSequence = [
+  // 1. THE LOG SEQUENCE
+  const script = [
     "INITIALIZING SYSTEM SCAN...",
     "ESTABLISHING SECURE CHANNEL...",
     "RESOLVING DESTINATION HOST...",
     "VERIFYING CRYPTOGRAPHIC HANDSHAKE...",
     "SYNCHRONIZING UPLINK PROTOCOLS...",
     "MONITORING USER BEHAVIOR...",
-    "SESSION INTEGRITY: ACTIVE"
+    "SESSION INTEGRITY: ACTIVE",
+    "PREPARING REDIRECT..."
   ];
 
-  // 2. FETCH REAL URL (With Debugging)
+  // 2. FETCH URL (Silent)
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
 
     const fetchUrl = async () => {
-      console.log("Attempting to resolve:", shortCode); // DEBUG LOG
       try {
-        // Ensure this matches your backend port (usually 8000 or 5000)
         const res = await fetch(`http://localhost:8000/url/resolve/${shortCode}`);
-        console.log("Response Status:", res.status); // DEBUG LOG
-
         if (res.ok) {
           const data = await res.json();
-          console.log("Target Found:", data.targetURL); // DEBUG LOG
           setRedirectUrl(data.targetURL);
-        } else {
-          console.error("Backend Error:", res.statusText);
-          setError("TARGET_NOT_FOUND");
         }
       } catch (err) {
-        console.error("Fetch Error:", err);
-        setError("CONNECTION_REFUSED_BACKEND_OFFLINE");
+        console.error("Connection failed");
       }
     };
     fetchUrl();
   }, [shortCode]);
 
-  // 3. ANIMATION SEQUENCE
+  // 3. THE "SMOOTH" TYPEWRITER ENGINE
   useEffect(() => {
-    let currentIndex = 0;
-    const interval = setInterval(() => {
-      // If we have lines left, print them
-      if (currentIndex < logSequence.length) {
-        setDisplayedLines(prev => [
-          ...prev, 
-          { id: currentIndex, text: logSequence[currentIndex] }
-        ]);
-        currentIndex++;
-      } else {
-        // Animation done. Check for errors or success.
-        clearInterval(interval);
-        
-        if (error) {
-          setDisplayedLines(prev => [...prev, { id: 999, text: `FATAL ERROR: ${error}`, isError: true }]);
-        } else if (!redirectUrl) {
-          // If animation finished but fetch is still pending (slow network)
-           setDisplayedLines(prev => [...prev, { id: 998, text: "AWAITING UPLINK RESPONSE...", isBlinking: true }]);
-        } else {
-           setDisplayedLines(prev => [...prev, { id: 1000, text: "PREPARING REDIRECT..." }]);
-           setIsComplete(true);
-        }
-      }
-    }, 500);
+    let lineIndex = 0;
+    let charIndex = 0;
+    let timeoutId;
 
-    return () => clearInterval(interval);
-  }, [error, redirectUrl]); // Re-run if error or url changes late
+    const typeChar = () => {
+      // If we finished all lines, stop.
+      if (lineIndex >= script.length) {
+        setIsComplete(true);
+        return;
+      }
+
+      const targetLine = script[lineIndex];
+
+      // Add next character
+      setCurrentLine(targetLine.substring(0, charIndex + 1));
+      charIndex++;
+
+      // If line is finished
+      if (charIndex > targetLine.length) {
+        // Commit the line to the list
+        setLines(prev => [...prev, targetLine]);
+        setCurrentLine(""); // Reset typer
+        lineIndex++;
+        charIndex = 0;
+        // Pause briefly between lines (looks more realistic)
+        timeoutId = setTimeout(typeChar, 150); 
+      } else {
+        // Type next char fast (30ms)
+        timeoutId = setTimeout(typeChar, 30);
+      }
+    };
+
+    // Start typing
+    typeChar();
+
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   // 4. REDIRECT TRIGGER
   useEffect(() => {
     if (isComplete && redirectUrl) {
       setTimeout(() => {
         window.location.href = redirectUrl;
-      }, 1000);
+      }, 800);
     }
   }, [isComplete, redirectUrl]);
+
+  // Auto-scroll always keeps focus at bottom
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+  }, [currentLine, lines]);
 
   return (
     <div style={styles.container}>
       
       {/* HEADER */}
       <div style={styles.header}>
-        <h1 style={styles.title}>PROJECT <span style={styles.underscore}>_</span> LOKI</h1>
+        <h1 style={styles.title}>PROJECT <span style={{color: '#00cc33'}}>_</span> LOKI</h1>
         <div style={styles.separator}></div>
       </div>
 
       {/* LOG OUTPUT */}
       <div style={styles.terminalBox}>
-        {displayedLines.map((line) => (
-          <div key={line.id} style={styles.logRow}>
+        {/* Render Completed Lines */}
+        {lines.map((line, index) => (
+          <div key={index} style={styles.logRow}>
             <span style={styles.timestamp}>[17:00:07]</span>
             <span style={styles.dollar}>$</span>
             <span style={{
               ...styles.message,
-              color: line.isError ? '#ff0033' : '#00ff41', // RED if error
-              textShadow: line.isError ? '0 0 10px #ff0033' : '0 0 5px rgba(0, 255, 65, 0.3)'
+              color: line.includes("ACTIVE") ? '#fff' : '#00ff41', // Highlight important words
+              fontWeight: line.includes("ACTIVE") ? 'bold' : 'normal'
             }}>
-              {line.text}
+              {line}
             </span>
           </div>
         ))}
         
-        {/* If stuck, show manual link */}
-        {isComplete && redirectUrl && (
-          <div style={{ marginTop: '20px', fontSize: '12px', color: '#004d00' }}>
-            [ <a href={redirectUrl} style={{color:'#00ff41'}}>CLICK_MANUALLY_IF_NO_REDIRECT</a> ]
+        {/* Render Currently Typing Line */}
+        {!isComplete && (
+          <div style={styles.logRow}>
+            <span style={styles.timestamp}>[17:00:07]</span>
+            <span style={styles.dollar}>$</span>
+            <span style={styles.message}>{currentLine}</span>
+            <span style={styles.cursor}>_</span>
           </div>
         )}
+        
+        <div ref={bottomRef} />
       </div>
 
       {/* FOOTER */}
       <div style={styles.footer}>
-        <span style={styles.footerText}>SECURITY LEVEL: ALPHA-9</span>
-        <span style={styles.footerText}>ENCRYPTED CONNECTION</span>
-        <span style={styles.footerText}>NODE: LOKI-01</span>
+        <span>SEC: ALPHA-9</span>
+        <span>ENCRYPTED</span>
+        <span>NODE: LOKI-01</span>
       </div>
 
     </div>
@@ -143,37 +159,70 @@ const styles = {
     fontFamily: '"Consolas", "Monaco", "Lucida Console", monospace',
     color: '#00ff41',
     overflow: 'hidden',
-    position: 'relative'
+    position: 'relative',
+    padding: '20px',
+    boxSizing: 'border-box'
   },
-  header: { marginBottom: '60px', textAlign: 'center', width: '600px' },
+
+  // HEADER
+  header: {
+    marginBottom: '5vh', // Responsive spacing
+    textAlign: 'center',
+    width: '100%',
+    maxWidth: '600px'
+  },
   title: {
-    fontSize: '28px', fontWeight: '900', letterSpacing: '12px', color: '#00ff41',
-    textShadow: '0 0 15px rgba(0, 255, 65, 0.6)', margin: '0 0 20px 0'
+    fontSize: 'clamp(24px, 5vw, 32px)', // Scales for mobile
+    fontWeight: '900',
+    letterSpacing: 'clamp(5px, 1vw, 12px)',
+    color: '#00ff41',
+    textShadow: '0 0 20px rgba(0, 255, 65, 0.4)',
+    margin: '0 0 20px 0'
   },
-  underscore: { color: '#00cc33' },
   separator: {
     width: '100%', height: '1px',
     background: 'linear-gradient(90deg, transparent 0%, #00330d 50%, transparent 100%)',
     opacity: 0.8
   },
+
+  // LOGS AREA
   terminalBox: {
-    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-    width: '750px', gap: '14px'
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'flex-start',
+    width: '100%', maxWidth: '750px',
+    minHeight: '300px', // Keeps layout stable
+    gap: '12px'
   },
   logRow: {
-    display: 'flex', alignItems: 'center', gap: '16px', fontSize: '15px', lineHeight: '1.5'
+    display: 'flex', alignItems: 'center',
+    gap: '12px',
+    fontSize: 'clamp(12px, 3vw, 16px)', // Readable on phone & desktop
+    lineHeight: '1.4',
+    width: '100%',
+    flexWrap: 'wrap' // Wraps text on tiny screens
   },
   timestamp: { color: '#004d00', fontWeight: 'normal', opacity: 0.8 },
-  dollar: { color: '#00ff41', fontWeight: 'bold', textShadow: '0 0 8px rgba(0, 255, 65, 0.5)' },
-  message: { letterSpacing: '0.5px' },
-  
+  dollar: { color: '#00ff41', fontWeight: 'bold' },
+  message: { color: '#00ff41', textShadow: '0 0 5px rgba(0, 255, 65, 0.3)' },
+  cursor: { color: '#00ff41', animation: 'blink 1s step-end infinite', marginLeft: '5px' },
+
+  // FOOTER
   footer: {
-    position: 'absolute', bottom: '60px', width: '80%', maxWidth: '900px',
-    display: 'flex', justifyContent: 'space-between', opacity: 0.4
-  },
-  footerText: {
-    color: '#008f24', fontSize: '11px', fontWeight: 'bold', letterSpacing: '2px', textTransform: 'uppercase'
+    position: 'absolute', bottom: '30px',
+    width: '90%', maxWidth: '900px',
+    display: 'flex', justifyContent: 'space-between',
+    opacity: 0.3,
+    fontSize: 'clamp(10px, 2vw, 12px)',
+    fontWeight: 'bold',
+    letterSpacing: '2px'
   }
 };
+
+// Global Blink Animation
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+`;
+document.head.appendChild(styleSheet);
 
 export default SecurityScan;
