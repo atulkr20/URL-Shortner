@@ -12,22 +12,29 @@ import trackingRouter from './routes/tracking.routes.js';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// Allow Vercel (Production) AND Localhost (Dev)
+
+// This allows connections from ANYWHERE (Vercel, Preview links, Localhost)
+// while still allowing cookies/headers to pass through.
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173", 
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        // Allow all other origins dynamically
+        callback(null, true);
+    },
     credentials: true
 }));
 
 app.use(express.json()); 
 
-//  PUBLIC ROUTES
+// --- 1. PUBLIC ROUTES ---
 app.get('/', (req, res) => res.json({ message: "Loki Server is up" }));
 app.use('/user', userRouter); 
 
-//  TRACKING ROUTES
+// --- 2. TRACKING ROUTES ---
 app.use('/track', trackingRouter);
 
-// REDIRECT ROUTE 
+// --- 3. REDIRECT ROUTE ---
 app.get('/:shortCode', async (req, res) => {
     const shortCode = req.params.shortCode;
     console.log(`[SYSTEM]: Redirect attempt for code: ${shortCode}`);
@@ -53,9 +60,11 @@ app.get('/:shortCode', async (req, res) => {
     }
 });
 
+// --- 4. PROTECTED ROUTES ---
 app.use(authenticationMiddleware); 
 app.use('/url', urlRouter); 
 
+// --- START SERVER ---
 app.listen(PORT, () => {
     console.log(`[LOKI]: Terminal Backend running on PORT ${PORT}`);
 });
