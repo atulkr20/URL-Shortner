@@ -12,28 +12,25 @@ import trackingRouter from './routes/tracking.routes.js';
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-// Updated CORS to be more specific for Vite
+// Allow Vercel (Production) AND Localhost (Dev)
 app.use(cors({
-    origin: "http://localhost:5173", 
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173", 
     credentials: true
 }));
 
 app.use(express.json()); 
 
-// --- 1. PUBLIC ROUTES ---
+//  PUBLIC ROUTES
 app.get('/', (req, res) => res.json({ message: "Loki Server is up" }));
 app.use('/user', userRouter); 
 
-// --- 2. TRACKING ROUTES (Public - anyone clicking links can track) ---
+//  TRACKING ROUTES
 app.use('/track', trackingRouter);
 
-// --- 3. REDIRECT ROUTE ---
+// REDIRECT ROUTE 
 app.get('/:shortCode', async (req, res) => {
     const shortCode = req.params.shortCode;
-    console.log(`[SYSTEM]: Redirect attempt for code: ${shortCode}`); // Added Log
+    console.log(`[SYSTEM]: Redirect attempt for code: ${shortCode}`);
     
     if (shortCode === 'favicon.ico') return res.status(404).end();
 
@@ -56,7 +53,6 @@ app.get('/:shortCode', async (req, res) => {
     }
 });
 
-// --- 4. PROTECTED ROUTES ---
 app.use(authenticationMiddleware); 
 app.use('/url', urlRouter); 
 
